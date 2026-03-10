@@ -10,6 +10,11 @@ The project demonstrates a minimal client-server architecture including:
 - Structured JSON messaging
 - Unit testing and end-to-end smoke testing
 
+## Example End-to-End Test Run
+
+Below is an example output of the smoke test runner validating the full client-server communication flow.
+
+![Test Runner Output](docs/test-run.png)
 
 ---
 
