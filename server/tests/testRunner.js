@@ -14,11 +14,12 @@ const HANDSHAKE_MESSAGES = {
   READY_FOR_COMMAND: "READY_FOR_COMMAND"
 };
 
-const COMMANDS = ["PING", "GET_TIME", "RANDOM_NUMBER"];
+const COMMANDS = ["PING", "GET_TIME", "RANDOM_NUMBER", "DO_SOMETHING"];
 
 const testResults = [];
 let currentCommandIndex = 0;
 let handshakeCompleted = false;
+let currentRequestId = null;
 
 function logPass(step, details) {
   testResults.push({ step, status: "PASS", details });
@@ -43,27 +44,73 @@ function isValidIsoDate(value) {
   return !Number.isNaN(date.getTime()) && value.includes("T");
 }
 
-function isValidRandomNumber(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 1 && number <= 100;
+function isValidRandomNumberString(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100;
 }
 
-function validateCommandResponse(command, result) {
+function validateCommandResponse(command, message) {
+  if (message.requestId !== currentRequestId) {
+    return {
+      ok: false,
+      details: `Expected requestId ${currentRequestId}, received ${message.requestId}`
+    };
+  }
+
+  if (message.command !== command) {
+    return {
+      ok: false,
+      details: `Expected command ${command}, received ${message.command}`
+    };
+  }
+
+  if (!message.status || !["success", "error"].includes(message.status)) {
+    return {
+      ok: false,
+      details: `Invalid status received: ${message.status}`
+    };
+  }
+
   switch (command) {
     case "PING":
-      return result === "PONG"
-        ? { ok: true, details: `Expected PONG, received ${result}` }
-        : { ok: false, details: `Expected PONG, received ${result}` };
+      if (message.status !== "success") {
+        return { ok: false, details: `Expected success status, received ${message.status}` };
+      }
+
+      return message.result === "PONG"
+        ? { ok: true, details: `Expected PONG, received ${message.result}` }
+        : { ok: false, details: `Expected PONG, received ${message.result}` };
 
     case "GET_TIME":
-      return isValidIsoDate(result)
-        ? { ok: true, details: `Received valid ISO date: ${result}` }
-        : { ok: false, details: `Invalid date format received: ${result}` };
+      if (message.status !== "success") {
+        return { ok: false, details: `Expected success status, received ${message.status}` };
+      }
+
+      return isValidIsoDate(message.result)
+        ? { ok: true, details: `Received valid ISO date: ${message.result}` }
+        : { ok: false, details: `Invalid date format received: ${message.result}` };
 
     case "RANDOM_NUMBER":
-      return isValidRandomNumber(result)
-        ? { ok: true, details: `Received valid random number: ${result}` }
-        : { ok: false, details: `Invalid random number received: ${result}` };
+      if (message.status !== "success") {
+        return { ok: false, details: `Expected success status, received ${message.status}` };
+      }
+
+      return isValidRandomNumberString(message.result)
+        ? { ok: true, details: `Received valid random number: ${message.result}` }
+        : { ok: false, details: `Invalid random number received: ${message.result}` };
+
+    case "DO_SOMETHING":
+      if (message.status !== "error") {
+        return { ok: false, details: `Expected error status, received ${message.status}` };
+      }
+
+      return message.error === "UNKNOWN_COMMAND"
+        ? { ok: true, details: "Received expected UNKNOWN_COMMAND error" }
+        : { ok: false, details: `Expected UNKNOWN_COMMAND, received ${message.error}` };
 
     default:
       return { ok: false, details: `Unknown command: ${command}` };
@@ -85,6 +132,19 @@ function printSummary() {
   console.log(`Passed: ${passed}`);
   console.log(`Failed: ${failed}`);
   console.log("========================\n");
+}
+
+function sendNextCommand(socket) {
+  const nextCommand = COMMANDS[currentCommandIndex];
+  currentRequestId = `req-${currentCommandIndex + 1}`;
+
+  console.log(`Sending command: ${nextCommand} | requestId=${currentRequestId}`);
+
+  sendJson(socket, {
+    type: MESSAGE_TYPES.COMMAND,
+    requestId: currentRequestId,
+    command: nextCommand
+  });
 }
 
 const server = net.createServer((socket) => {
@@ -120,49 +180,28 @@ const server = net.createServer((socket) => {
     ) {
       handshakeCompleted = true;
       logPass("Handshake", "Client responded with READY_FOR_COMMAND");
-
-      const nextCommand = COMMANDS[currentCommandIndex];
-      console.log(`Sending command: ${nextCommand}`);
-
-      sendJson(socket, {
-        type: MESSAGE_TYPES.COMMAND,
-        command: nextCommand
-      });
+      sendNextCommand(socket);
       return;
     }
 
     if (parsedMessage.type === MESSAGE_TYPES.RESPONSE) {
       const expectedCommand = COMMANDS[currentCommandIndex];
+      const validation = validateCommandResponse(expectedCommand, parsedMessage);
 
-      if (parsedMessage.command !== expectedCommand) {
-        logFail(
-          "Command Order",
-          `Expected response for ${expectedCommand}, received ${parsedMessage.command}`
-        );
+      if (validation.ok) {
+        logPass(expectedCommand, validation.details);
+      } else {
+        logFail(expectedCommand, validation.details);
         printSummary();
         socket.end();
         server.close();
         return;
       }
 
-      const validation = validateCommandResponse(parsedMessage.command, parsedMessage.result);
-
-      if (validation.ok) {
-        logPass(parsedMessage.command, validation.details);
-      } else {
-        logFail(parsedMessage.command, validation.details);
-      }
-
       currentCommandIndex += 1;
 
       if (currentCommandIndex < COMMANDS.length) {
-        const nextCommand = COMMANDS[currentCommandIndex];
-        console.log(`Sending command: ${nextCommand}`);
-
-        sendJson(socket, {
-          type: MESSAGE_TYPES.COMMAND,
-          command: nextCommand
-        });
+        sendNextCommand(socket);
       } else {
         printSummary();
         socket.end();

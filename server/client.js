@@ -37,7 +37,7 @@ function executeCommand(command) {
       return new Date().toISOString();
 
     case COMMANDS.RANDOM_NUMBER:
-      return String(Math.floor(Math.random() * 100) + 1);
+      return Math.floor(Math.random() * 100) + 1;
 
     default:
       return RESPONSES.UNKNOWN_COMMAND;
@@ -66,18 +66,52 @@ function handleHandshake(socket, message) {
   return false;
 }
 
-function handleCommandMessage(socket, message) {
+function isValidCommandMessage(message) {
   if (message.type !== MESSAGE_TYPES.COMMAND) {
+    return false;
+  }
+
+  if (!message.requestId || typeof message.requestId !== "string") {
+    return false;
+  }
+
+  if (!message.command || typeof message.command !== "string") {
+    return false;
+  }
+
+  return true;
+}
+
+function buildCommandResponse(message, result) {
+  const isKnownCommand = result !== RESPONSES.UNKNOWN_COMMAND;
+
+  if (isKnownCommand) {
+    return {
+      type: MESSAGE_TYPES.RESPONSE,
+      requestId: message.requestId,
+      command: message.command,
+      status: "success",
+      result
+    };
+  }
+
+  return {
+    type: MESSAGE_TYPES.RESPONSE,
+    requestId: message.requestId,
+    command: message.command,
+    status: "error",
+    error: RESPONSES.UNKNOWN_COMMAND
+  };
+}
+
+function handleCommandMessage(socket, message) {
+  if (!isValidCommandMessage(message)) {
+    console.error("Invalid command message received");
     return;
   }
 
   const result = executeCommand(message.command);
-
-  const responsePayload = {
-    type: MESSAGE_TYPES.RESPONSE,
-    command: message.command,
-    result
-  };
+  const responsePayload = buildCommandResponse(message, result);
 
   console.log("Sending command response:", responsePayload);
   sendJsonMessage(socket, responsePayload);

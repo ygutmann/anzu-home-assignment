@@ -18,7 +18,7 @@ function handleCommand(command) {
       return new Date().toISOString();
 
     case COMMANDS.RANDOM_NUMBER:
-      return String(Math.floor(Math.random() * 100) + 1);
+      return Math.floor(Math.random() * 100) + 1;
 
     default:
       return RESPONSES.UNKNOWN_COMMAND;

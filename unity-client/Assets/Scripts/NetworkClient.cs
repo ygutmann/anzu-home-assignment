@@ -8,8 +8,11 @@ public class NetworkMessage
 {
     public string type;
     public string message;
+    public string requestId;
     public string command;
+    public string status;
     public string result;
+    public string error;
 }
 
 public class NetworkClient : MonoBehaviour
@@ -28,6 +31,9 @@ public class NetworkClient : MonoBehaviour
     private const string PingCommand = "PING";
     private const string GetTimeCommand = "GET_TIME";
     private const string RandomNumberCommand = "RANDOM_NUMBER";
+
+    private const string SuccessStatus = "success";
+    private const string ErrorStatus = "error";
 
     private const string PongResponse = "PONG";
     private const string UnknownCommand = "UNKNOWN_COMMAND";
@@ -98,7 +104,7 @@ public class NetworkClient : MonoBehaviour
 
         try
         {
-            incomingMessage = UnityEngine.JsonUtility.FromJson<NetworkMessage>(rawMessage);
+            incomingMessage = JsonUtility.FromJson<NetworkMessage>(rawMessage);
         }
         catch (Exception exception)
         {
@@ -121,15 +127,43 @@ public class NetworkClient : MonoBehaviour
 
         if (incomingMessage.type == CommandType)
         {
+            if (!IsValidCommandMessage(incomingMessage))
+            {
+                Debug.LogWarning("Received invalid command message.");
+                return;
+            }
+
             string commandName = incomingMessage.command;
-            Debug.Log("Command received: " + commandName);
+            string requestId = incomingMessage.requestId;
+
+            Debug.Log($"Command received: {commandName} | requestId={requestId}");
 
             string commandResult = ExecuteCommand(commandName);
-            SendCommandResponse(commandName, commandResult);
+            SendCommandResponse(requestId, commandName, commandResult);
             return;
         }
 
         Debug.LogWarning("Received unsupported message format.");
+    }
+
+    private bool IsValidCommandMessage(NetworkMessage message)
+    {
+        if (message.type != CommandType)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(message.requestId))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(message.command))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private string ExecuteCommand(string commandName)
@@ -162,17 +196,30 @@ public class NetworkClient : MonoBehaviour
         Debug.Log("Sent READY_FOR_COMMAND to server.");
     }
 
-    private void SendCommandResponse(string commandName, string result)
+    private void SendCommandResponse(string requestId, string commandName, string result)
     {
+        bool isKnownCommand = result != UnknownCommand;
+
         NetworkMessage responseMessage = new NetworkMessage
         {
             type = ResponseType,
+            requestId = requestId,
             command = commandName,
-            result = result
+            status = isKnownCommand ? SuccessStatus : ErrorStatus,
+            result = isKnownCommand ? result : null,
+            error = isKnownCommand ? null : UnknownCommand
         };
 
         SendMessage(responseMessage);
-        Debug.Log($"Sent response for command: {commandName} with result: {result}");
+
+        if (isKnownCommand)
+        {
+            Debug.Log($"Sent success response | requestId={requestId} | command={commandName} | result={result}");
+        }
+        else
+        {
+            Debug.Log($"Sent error response | requestId={requestId} | command={commandName} | error={UnknownCommand}");
+        }
     }
 
     private void SendMessage(NetworkMessage message)
@@ -185,10 +232,12 @@ public class NetworkClient : MonoBehaviour
 
         try
         {
-            string jsonMessage = UnityEngine.JsonUtility.ToJson(message);
+            string jsonMessage = JsonUtility.ToJson(message);
             byte[] messageBytes = Encoding.UTF8.GetBytes(jsonMessage);
             networkStream.Write(messageBytes, 0, messageBytes.Length);
             networkStream.Flush();
+
+            Debug.Log("Sent to server: " + jsonMessage);
         }
         catch (Exception exception)
         {
