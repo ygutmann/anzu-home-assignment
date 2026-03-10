@@ -1,4 +1,5 @@
 # Server–Unity TCP Communication
+![Node Tests](https://github.com/ygutmann/anzu-home-assignment/actions/workflows/tests.yml/badge.svg)
 
 A lightweight TCP-based client–server communication system between a **Node.js server** and a **Unity client**, implemented as part of a Junior QA Engineer home assignment.
 
