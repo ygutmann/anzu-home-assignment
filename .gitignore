@@ -1,3 +1,7 @@
+# =========================
+# Unity
+# =========================
+
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -16,32 +20,20 @@ UserSettings/
 *.pdb
 *.mdb
 
-.DS_Store
-
-# Unity
-unity-client/Library/
-unity-client/Temp/
-unity-client/obj/
+# Unity IDE / collaboration
 unity-client/.vs/
-
-# System
-.DS_Store
-
-# Node
-node_modules/
-
-# Node
-server/node_modules/
-
-# Unity
-unity-client/Library/
-unity-client/Temp/
-unity-client/obj/
-unity-client/.vs/
-
-# IDE
 unity-client/.collabignore
 unity-client/.vsconfig
 
-# Mac
+# =========================
+# Node
+# =========================
+
+node_modules/
+server/node_modules/
+
+# =========================
+# System
+# =========================
+
 .DS_Store
