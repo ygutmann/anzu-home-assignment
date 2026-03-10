@@ -29,3 +29,19 @@ unity-client/.vs/
 
 # Node
 node_modules/
+
+# Node
+server/node_modules/
+
+# Unity
+unity-client/Library/
+unity-client/Temp/
+unity-client/obj/
+unity-client/.vs/
+
+# IDE
+unity-client/.collabignore
+unity-client/.vsconfig
+
+# Mac
+.DS_Store
