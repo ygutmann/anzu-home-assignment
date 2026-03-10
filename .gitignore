@@ -17,3 +17,15 @@ UserSettings/
 *.mdb
 
 .DS_Store
+
+# Unity
+unity-client/Library/
+unity-client/Temp/
+unity-client/obj/
+unity-client/.vs/
+
+# System
+.DS_Store
+
+# Node
+node_modules/
